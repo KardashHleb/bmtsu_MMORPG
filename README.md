@@ -1,4 +1,4 @@
-# 🗡️ bmtsu_MMORPG — Relational Database for an MMORPG
+# bmtsu_MMORPG — Relational Database for an MMORPG
 
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-13%2B-336791?logo=postgresql&logoColor=white)
 ![Normal form](https://img.shields.io/badge/normal%20form-BCNF-success)
@@ -15,31 +15,34 @@ servers, player accounts, characters, classes and abilities, guilds and membersh
 
 ---
 
-## 📑 Contents
+## Contents
 
-- [Repository structure](#-repository-structure)
-- [Quick start](#-quick-start)
-- [Domain model](#-domain-model)
-- [ER diagram](#-er-diagram)
-- [Tables](#-tables)
-- [Business rules and integrity](#-business-rules-and-integrity)
-- [Normalization (1NF → BCNF)](#-normalization-1nf--bcnf)
-- [Example queries](#-example-queries)
-- [What changed in v2](#-what-changed-in-v2)
+- [Repository structure](#repository-structure)
+- [Quick start](#quick-start)
+- [Domain model](#domain-model)
+- [ER diagram](#er-diagram)
+- [Tables](#tables)
+- [Business rules and integrity](#business-rules-and-integrity)
+- [Normalization (1NF → BCNF)](#normalization-1nf--bcnf)
+- [Example queries](#example-queries)
+- [What changed in v2](#what-changed-in-v2)
+
+How AI (Claude) was used to review and redesign this schema is described in [AI_DESIGN.md](AI_DESIGN.md).
 
 ---
 
-## 📁 Repository structure
+## Repository structure
 
 | File | Purpose |
 |------|---------|
 | [`schema.sql`](schema.sql) | DDL: tables, constraints, triggers, indexes |
 | [`seed.sql`](seed.sql) | Small demo dataset: 2 servers, 3 classes, 4 characters, 1 guild |
 | `README.md` | This document |
+| [`AI_DESIGN.md`](AI_DESIGN.md) | How the v2 schema was designed with an AI assistant (Claude), benefits and limits of the approach |
 
 ---
 
-## 🚀 Quick start
+## Quick start
 
 ```bash
 createdb mmorpg
@@ -59,19 +62,19 @@ Both scripts run inside a transaction, so a failure leaves the database untouche
 
 ---
 
-## 🌍 Domain model
+## Domain model
 
 ```mermaid
 flowchart LR
-    A[👤 Account] -->|owns many| C[🧙 Character]
-    S[🌐 Server] -->|hosts| C
-    S -->|hosts| G[🛡️ Guild]
-    K[📜 Class] -->|defines| C
-    K -->|may learn| AB[✨ Ability]
+    A[Account] -->|owns many| C[Character]
+    S[Server] -->|hosts| C
+    S -->|hosts| G[Guild]
+    K[Class] -->|defines| C
+    K -->|may learn| AB[Ability]
     C -->|learned| AB
     C -->|member of, over time| G
-    C --- P[📈 Progress]
-    C --- ST[❤️ Live state]
+    C --- P[Progress]
+    C --- ST[Live state]
 ```
 
 - A **player** has one **account** and can create many **characters**.
@@ -82,7 +85,7 @@ flowchart LR
 
 ---
 
-## 🗺️ ER diagram
+## ER diagram
 
 ```mermaid
 erDiagram
@@ -185,7 +188,7 @@ erDiagram
 
 ---
 
-## 📋 Tables
+## Tables
 
 | # | Table | What it stores | Key | Notable constraints |
 |---|-------|----------------|-----|---------------------|
@@ -202,7 +205,7 @@ erDiagram
 | 11 | `guilds` | Guilds | `guild_id` | unique (`server_id`, `name`) and (`server_id`, `tag`) |
 | 12 | `guild_memberships` | Membership periods (history) | `membership_id` | `left_at ≥ joined_at`; one active guild per character; one leader per guild |
 
-### 💰 About money
+### About money
 
 v1 stored `gold`, `silver` and `copper` in three columns. That allowed values like *0 gold 250 silver*,
 which mean the same as *2 gold 50 silver*, so one amount could be written in several ways.
@@ -216,7 +219,7 @@ v2 stores **one balance in the smallest coin** and derives the parts:
 
 ---
 
-## 🔒 Business rules and integrity
+## Business rules and integrity
 
 Rules inside one row are `CHECK` constraints. Uniqueness rules use (partial) unique indexes.
 Rules that span tables use triggers, so the tables stay normalized and no data is duplicated.
@@ -239,20 +242,20 @@ Rules that span tables use triggers, so the tables stay normalized and no data i
 Each rule was checked against the demo data. Every bad operation below is rejected:
 
 ```text
-✔ Warrior learns Fireball                -> Ability 3 is not available for the class of character 1
-✔ Nightfall character joins Aurora guild -> Character 2 and guild 1 are on different servers
-✔ Second active guild for a character    -> violates "uq_active_membership_per_character"
-✔ Second leader in a guild               -> violates "uq_active_leader_per_guild"
-✔ Change character class                 -> Character 1 cannot change server or class
-✔ Move guild to another server           -> Guild 1 cannot change server
-✔ Negative balance                       -> violates check "character_progress_balance_copper_check"
-✔ left_at earlier than joined_at         -> violates check "guild_memberships_check"
-✔ Invalid email                          -> violates check "accounts_email_check"
+Warrior learns Fireball                -> Ability 3 is not available for the class of character 1
+Nightfall character joins Aurora guild -> Character 2 and guild 1 are on different servers
+Second active guild for a character    -> violates "uq_active_membership_per_character"
+Second leader in a guild               -> violates "uq_active_leader_per_guild"
+Change character class                 -> Character 1 cannot change server or class
+Move guild to another server           -> Guild 1 cannot change server
+Negative balance                       -> violates check "character_progress_balance_copper_check"
+left_at earlier than joined_at         -> violates check "guild_memberships_check"
+Invalid email                          -> violates check "accounts_email_check"
 ```
 
 ---
 
-## 🧮 Normalization (1NF → BCNF)
+## Normalization (1NF → BCNF)
 
 ### 1NF — atomic values, no repeating groups
 - Every column holds one value. Lists like "abilities of a character" or "members of a guild"
@@ -266,7 +269,7 @@ Only two tables have composite keys:
 | Table | Key | Non-key attributes | Depend on the **whole** key? |
 |-------|-----|--------------------|------------------------------|
 | `class_abilities` | (class_id, ability_id) | — | n/a |
-| `character_abilities` | (character_id, ability_id) | ability_level, learned_at | ✅ the level of *this* ability for *this* character |
+| `character_abilities` | (character_id, ability_id) | ability_level, learned_at | Yes, the level of *this* ability for *this* character |
 
 There is deliberately **no `class_id` in `character_abilities`**. It would depend on `character_id` alone,
 which breaks 2NF. The "ability must match the class" rule is a trigger instead.
@@ -285,21 +288,21 @@ Non-trivial functional dependencies and their determinants:
 
 | Table | Determinant(s) | Candidate key? |
 |-------|---------------|----------------|
-| `servers` | `server_id`, `name` | ✅ both |
-| `accounts` | `account_id`, `email`, `username` | ✅ all three |
-| `characters` | `character_id`, (`server_id`, `name`) | ✅ both |
-| `guilds` | `guild_id`, (`server_id`, `name`), (`server_id`, `tag`) | ✅ all three |
-| `guild_ranks` | `rank_code`, `rank_name`, `priority` | ✅ all three |
-| `character_classes`, `abilities` | id, name | ✅ both |
-| `character_progress`, `character_state` | `character_id` | ✅ |
-| `character_abilities` | (`character_id`, `ability_id`) | ✅ |
-| `guild_memberships` | `membership_id` | ✅ |
+| `servers` | `server_id`, `name` | Yes, both |
+| `accounts` | `account_id`, `email`, `username` | Yes, all three |
+| `characters` | `character_id`, (`server_id`, `name`) | Yes, both |
+| `guilds` | `guild_id`, (`server_id`, `name`), (`server_id`, `tag`) | Yes, all three |
+| `guild_ranks` | `rank_code`, `rank_name`, `priority` | Yes, all three |
+| `character_classes`, `abilities` | id, name | Yes, both |
+| `character_progress`, `character_state` | `character_id` | Yes |
+| `character_abilities` | (`character_id`, `ability_id`) | Yes |
+| `guild_memberships` | `membership_id` | Yes |
 
 No attribute is determined by a non-key, so **every table is in BCNF**.
 
 ---
 
-## 🔍 Example queries
+## Example queries
 
 <details>
 <summary><b>Guild roster, sorted by rank and level</b></summary>
@@ -375,7 +378,7 @@ Frostbite shows two rows: an old, closed membership and the current one.
 
 ---
 
-## 🆕 What changed in v2
+## What changed in v2
 
 | # | Problem in v1 | Fix in v2 |
 |---|---------------|-----------|
